@@ -2,39 +2,51 @@
 import threading
 import api2ch
 import random
+import re
+import time
 
 bot = telebot.TeleBot('TOKEN')
 api = api2ch.Api2ch()
-boardsList = ['b', 'wp', 'zog']
+tagsList = ['засмеялся', 'webm', 'обосрался', 'тредшот']
+urlList = list()
 
-def getPic(postUrl):
-        valid, board, thread_id = api2ch.parse_url(postUrl)
-        if not valid:
-            print(404, 'Invalid URL')
-            return ""
-        try:
-            thread = api.thread(board, thread_id)
-        except:
-            return ""
-        text = ""
-        while(True):
-            post = thread.posts[random.randint(0, len(thread.posts)-1)]
-            if post.files:
-                text += (post.files[0].url() + "\n")
-                return text
-            else: continue
+def verifyPic(url):
+    for i in range(0, len(urlList)):
+        if url == urlList[i]:   return False
+    if len(urlList) >= 50:  urlList.pop(0)
+    urlList.append(url)
+    return True
+
+def getPic(num, mode):
+    thread = api.thread(mode, num)
+    while(True):
+        post = thread.posts[random.randint(0, len(thread.posts)-1)]
+        if post.files:
+            while(True):
+                buf = post.files[0].url()
+                if verifyPic(buf): break
+            return (buf + "\n")
+        else: continue
 
 def sendPicsByTimer():
-    recList = list()
-    for i in range(0, len(boardsList)): recList.append(api.threads(boardsList[i]))
-    num = random.randint(0, len(recList)-1)
-    pic = getPic(recList[num].threads[random.randint(0, len(recList[num].threads)-1)].url(recList[num].board))
+    c = 0
+    if time.localtime().tm_hour <= 6 or time.localtime().tm_hour >= 22:    postingMode = 'wp'
+    else: postingMode = 'b'
+    recList = api.threads(postingMode)
+    while(True):
+        thread = recList.threads[random.randint(0, len(recList.threads)-1)]
+        if postingMode == 'wp': break
+        if c >= len(recList.threads): break
+        c += 1
+        for i in range(0, len(tagsList)):
+            if re.search(tagsList[i], thread.body):    break
+    pic = getPic(thread.num, postingMode)
     try:
-        bot.send_photo(-1001213878357, pic)
-    except:
-        print('404 пикча')
+        if postingMode == 'wp':
+            bot.send_message(-1001213878357, pic)
+        else:   bot.send_photo(-1001213878357, pic)
+    except: print('404 пикча')
     timerTag = threading.Timer(300.0, sendPicsByTimer)
     timerTag.start()
 
 sendPicsByTimer()
-bot.polling(none_stop=True)
