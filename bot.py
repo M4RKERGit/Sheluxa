@@ -4,29 +4,37 @@ import api2ch
 import random
 import re
 import time
+import os, sys
 
 bot = telebot.TeleBot('TOKEN')
 api = api2ch.Api2ch()
-tagsList = ['засмеялся', 'webm', 'обосрался', 'тредшот']
+tagsList = ['засмеялся', 'webm', 'обосрался', 'тредшот', 'субкот']
 urlList = list()
 
 def verifyPic(url):
-    for i in range(0, len(urlList)):
-        if url == urlList[i]:   return False
-    if len(urlList) >= 50:  urlList.pop(0)
-    urlList.append(url)
-    return True
+    global urlList
+    print(len(urlList))
+    if not url in urlList:
+        if len(urlList) >= 2000:  urlList.pop(0)
+        urlList.append(url)
+        return True
+    else:
+        return False
 
 def getPic(num, mode):
     thread = api.thread(mode, num)
+    c = 0
+    buf = ''
     while(True):
         post = thread.posts[random.randint(0, len(thread.posts)-1)]
         if post.files:
-            while(True):
-                buf = post.files[0].url()
-                if verifyPic(buf): break
-            return (buf + "\n")
-        else: continue
+            buf = post.files[0].url()
+            if verifyPic(buf): break
+            else:
+                c += 1
+                if (c > 20): os.execl(sys.executable, sys.executable, *sys.argv)
+                continue
+    return (buf + "\n")
 
 def sendPicsByTimer():
     c = 0
@@ -43,9 +51,12 @@ def sendPicsByTimer():
     pic = getPic(thread.num, postingMode)
     try:
         if postingMode == 'wp':
-            bot.send_message(-1001213878357, pic)
-        else:   bot.send_photo(-1001213878357, pic)
-    except: print('404 пикча')
+            bot.send_message(CHAT, pic)
+        else:   bot.send_photo(CHAT, pic)
+    except: 
+        print('404 пикча')
+        sendPicsByTimer()
+        return
     timerTag = threading.Timer(300.0, sendPicsByTimer)
     timerTag.start()
 
